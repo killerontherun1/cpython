@@ -904,7 +904,7 @@ only enabled by ``--findleaks``. The check now also works with
 .. nonce: B8-ghi
 .. section: Tests
 
-When using mulitprocessing mode (-jN), regrtest now better reports errors if
+When using multiprocessing mode (-jN), regrtest now better reports errors if
 a worker process fails, and it exits immediately on a worker thread failure
 or when interrupted.
 
@@ -1052,7 +1052,8 @@ Remove the stale scriptsinstall Makefile target.
 .. nonce: ACQkiC
 .. section: Build
 
-On Unix, C extensions are no longer linked to libpython except on Android.
+On Unix, C extensions are no longer linked to libpython except on Android
+and Cygwin.
 
 It is now possible for a statically linked Python to load a C extension
 built using a shared library Python.

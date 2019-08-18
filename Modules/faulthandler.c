@@ -1,5 +1,6 @@
 #include "Python.h"
-#include "pycore_coreconfig.h"
+#include "pycore_initconfig.h"
+#include "pycore_traceback.h"
 #include "pythread.h"
 #include <signal.h>
 #include <object.h>
@@ -171,7 +172,7 @@ faulthandler_get_fileno(PyObject **file_ptr)
         return fd;
     }
 
-    result = _PyObject_CallMethodId(file, &PyId_fileno, NULL);
+    result = _PyObject_CallMethodIdNoArgs(file, &PyId_fileno);
     if (result == NULL)
         return -1;
 
@@ -189,7 +190,7 @@ faulthandler_get_fileno(PyObject **file_ptr)
         return -1;
     }
 
-    result = _PyObject_CallMethodId(file, &PyId_flush, NULL);
+    result = _PyObject_CallMethodIdNoArgs(file, &PyId_flush);
     if (result != NULL)
         Py_DECREF(result);
     else {
@@ -1304,7 +1305,7 @@ faulthandler_init_enable(void)
         return -1;
     }
 
-    PyObject *res = _PyObject_CallMethodId(module, &PyId_enable, NULL);
+    PyObject *res = _PyObject_CallMethodIdNoArgs(module, &PyId_enable);
     Py_DECREF(module);
     if (res == NULL) {
         return -1;
@@ -1314,7 +1315,7 @@ faulthandler_init_enable(void)
     return 0;
 }
 
-_PyInitError
+PyStatus
 _PyFaulthandler_Init(int enable)
 {
 #ifdef HAVE_SIGALTSTACK
@@ -1324,7 +1325,11 @@ _PyFaulthandler_Init(int enable)
      * be able to allocate memory on the stack, even on a stack overflow. If it
      * fails, ignore the error. */
     stack.ss_flags = 0;
-    stack.ss_size = SIGSTKSZ;
+    /* bpo-21131: allocate dedicated stack of SIGSTKSZ*2 bytes, instead of just
+       SIGSTKSZ bytes. Calling the previous signal handler in faulthandler
+       signal handler uses more than SIGSTKSZ bytes of stack memory on some
+       platforms. */
+    stack.ss_size = SIGSTKSZ * 2;
     stack.ss_sp = PyMem_Malloc(stack.ss_size);
     if (stack.ss_sp != NULL) {
         err = sigaltstack(&stack, &old_stack);
@@ -1339,17 +1344,17 @@ _PyFaulthandler_Init(int enable)
     thread.cancel_event = PyThread_allocate_lock();
     thread.running = PyThread_allocate_lock();
     if (!thread.cancel_event || !thread.running) {
-        return _Py_INIT_ERR("failed to allocate locks for faulthandler");
+        return _PyStatus_ERR("failed to allocate locks for faulthandler");
     }
     PyThread_acquire_lock(thread.cancel_event, 1);
 #endif
 
     if (enable) {
         if (faulthandler_init_enable() < 0) {
-            return _Py_INIT_ERR("failed to enable faulthandler");
+            return _PyStatus_ERR("failed to enable faulthandler");
         }
     }
-    return _Py_INIT_OK();
+    return _PyStatus_OK();
 }
 
 void _PyFaulthandler_Fini(void)
